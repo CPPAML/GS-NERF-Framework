@@ -55,7 +55,7 @@ class OmniObject3D(Dataset):
         elif self.view_type == "sliding":
             self.idxs = [self.indexes[i : i + self.views_per_batch] for i in range(0, len(self.indexes) - self.views_per_batch + 1)]
         else:
-            raise ValueError(f"Unknown view_type: {self.view_type}")
+            raise ValueError(f"Unknown view_type: {self.view_type}, please use one of 'uniform', 'contiguous' or 'sliding'.")
 
     def __len__(self):
         return len(self.idxs)
