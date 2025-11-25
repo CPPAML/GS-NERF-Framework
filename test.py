@@ -40,7 +40,7 @@ wrapper.train(
 
     # Previews (PNG snapshots)
     preview_every=50,
-    preview_downscale=2,
+    preview_downscale=1,
     preview_chunk_rays=best_chunk,
     preview_view=0,
     save_depth_preview=True,

@@ -370,9 +370,9 @@ class NerfWrapper:
         # Make full-resolution pixel grid (u,v) with 0.5 center offset
         uu = torch.arange(W, device=dev, dtype=torch.float32)
         vv = torch.arange(H, device=dev, dtype=torch.float32)
-        U, V = torch.meshgrid(uu, vv, indexing="xy")  # (W,H)
-        pixels_uv = torch.stack([U.T.reshape(-1) + 0.5,
-                                 V.T.reshape(-1) + 0.5], dim=-1)  # (H*W, 2)
+        U, V = torch.meshgrid(uu, vv, indexing="xy")  # (H,W)
+        pixels_uv = torch.stack([U.reshape(-1) + 0.5,
+                                 V.reshape(-1) + 0.5], dim=-1)  # (H*W, 2)
         # (1, Nr, 2)
         pixels_uv = pixels_uv.unsqueeze(0)
 
@@ -517,6 +517,14 @@ class NerfWrapper:
         dn = dn.squeeze(-1)  # (H,W)
         cv2.imwrite(path, dn)
 
+    @staticmethod
+    def _get_downscaled_K(K, downscale):
+        if downscale <= 1:
+            return K
+        K_scaled = K.clone()
+        K_scaled[:2, :] /= float(downscale)
+        return K_scaled
+
     @torch.no_grad()
     def _render_and_save_preview(self,
                                  step: int,
@@ -534,9 +542,12 @@ class NerfWrapper:
             H = max(1, H // downscale)
             W = max(1, W // downscale)
 
+        # Scale Intrinsics
+        K_scaled = self._get_downscaled_K(self.ds.K, downscale)
+
         # Render
         rgb, depth = self.render_view(
-            K=self.ds.K,
+            K=K_scaled,
             pose=self.ds.frames[view_id],
             H=H, W=W,
             aabb=self.ds.aabb,
@@ -557,6 +568,14 @@ class NerfWrapper:
         """Find the largest safe preview_chunk_rays via quick test render."""
         test_sizes = [start, start//2, start//3*2, 49152, 32768, 24576, 16384, 12288, floor]
         tried = set()
+        
+        # Prepare size
+        H = max(1, self.ds.height // downscale)
+        W = max(1, self.ds.width  // downscale)
+        
+        # Scale Intrinsics
+        K_scaled = self._get_downscaled_K(self.ds.K, downscale)
+        
         for s in test_sizes:
             s = int(max(floor, s))
             if s in tried:
@@ -564,10 +583,8 @@ class NerfWrapper:
             tried.add(s)
             try:
                 # tiny render just to allocate the buffers
-                H = max(1, self.ds.height // downscale)
-                W = max(1, self.ds.width  // downscale)
                 self.render_view(
-                    K=self.ds.K,
+                    K=K_scaled,
                     pose=self.ds.frames[view_id],
                     H=H, W=W,
                     aabb=self.ds.aabb,
