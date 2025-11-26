@@ -79,18 +79,24 @@ class OmniObject3D(Dataset):
                                [0.0, fy, cy],
                                [0.0, 0.0, 1.0]], dtype=torch.float32)  # (3,3)
 
-        # ---------- Load all images (RGB, float32 in [0,1]) ----------
+        # ---------- Load all images (RGB or RGBA, float32 in [0,1]) ----------
         self.imgs: List[torch.Tensor] = []
         for p in self.file_list:
-            bgr = cv2.imread(str(p), cv2.IMREAD_UNCHANGED)
-            if bgr is None:
+            img_cv = cv2.imread(str(p), cv2.IMREAD_UNCHANGED)
+            if img_cv is None:
                 raise RuntimeError(f"Failed to read image: {p}")
-            if bgr.ndim == 2:
-                bgr = cv2.cvtColor(bgr, cv2.COLOR_GRAY2RGB)
-            elif bgr.shape[2] == 4:
-                bgr = cv2.cvtColor(bgr, cv2.COLOR_BGRA2BGR)
-            rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-            img = torch.from_numpy(rgb).to(torch.float32) / 255.0  # (H,W,3)
+            
+            if img_cv.ndim == 2:
+                img_cv = cv2.cvtColor(img_cv, cv2.COLOR_GRAY2RGB)
+            
+            if img_cv.shape[2] == 4:
+                # BGRA -> RGBA
+                img_cv = cv2.cvtColor(img_cv, cv2.COLOR_BGRA2RGBA)
+            else:
+                # BGR -> RGB
+                img_cv = cv2.cvtColor(img_cv, cv2.COLOR_BGR2RGB)
+            
+            img = torch.from_numpy(img_cv).to(torch.float32) / 255.0
             self.imgs.append(img)
 
         self.indexes = list(range(len(self.imgs)))

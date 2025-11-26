@@ -130,7 +130,7 @@ class NerfWrapper:
             self.scaler = None
 
         if self.use_bgcolor:
-            self.bgcolor = torch.zeros(3, dtype=torch.float32, device=self.device)
+            self.bgcolor = torch.ones(3, dtype=torch.float32, device=self.device)
 
     # ==============================================================
     # =======================  TRAIN LOOP  =========================
@@ -158,6 +158,16 @@ class NerfWrapper:
                 ray_s = ray_sampler(batch["images"], self.num_rays, sampling_method=self.ray_sampler_method)
                 ray_s["pixels_uv"] = ray_s["pixels_uv"].to(self.device)
                 ray_s["pixels_gt"] = ray_s["pixels_gt"].to(self.device)
+
+                # Handle RGBA / Background compositing
+                pixels_gt = ray_s["pixels_gt"]
+                if pixels_gt.shape[-1] == 4:
+                    rgb_gt = pixels_gt[..., :3]
+                    alpha_gt = pixels_gt[..., 3:]
+                    if self.use_bgcolor:
+                        rgb_gt = rgb_gt * alpha_gt + self.bgcolor * (1.0 - alpha_gt)
+                else:
+                    rgb_gt = pixels_gt
 
                 # 1) generate rays
                 rays = ray_generation(batch["Ks"], batch["poses"], ray_s["pixels_uv"], batch["aabb"])
@@ -198,7 +208,7 @@ class NerfWrapper:
                                         hit_max=rays["hit_mask"],
                                         bg_color=self.bgcolor if self.use_bgcolor else None)
                 # 9) loss
-                loss, psnr = loss_computation(vol["rgb_pred"], vol_f["rgb_pred"], ray_s["pixels_gt"])
+                loss, psnr = loss_computation(vol["rgb_pred"], vol_f["rgb_pred"], rgb_gt)
 
             if not torch.isfinite(loss):
                 print("Non-finite loss encountered. Lower LR / disable AMP / check NaNs.")
@@ -263,6 +273,16 @@ class NerfWrapper:
                 ray_s["pixels_uv"] = ray_s["pixels_uv"].to(self.device)
                 ray_s["pixels_gt"] = ray_s["pixels_gt"].to(self.device)
 
+                # Handle RGBA / Background compositing
+                pixels_gt = ray_s["pixels_gt"]
+                if pixels_gt.shape[-1] == 4:
+                    rgb_gt = pixels_gt[..., :3]
+                    alpha_gt = pixels_gt[..., 3:]
+                    if self.use_bgcolor:
+                        rgb_gt = rgb_gt * alpha_gt + self.bgcolor * (1.0 - alpha_gt)
+                else:
+                    rgb_gt = pixels_gt
+
                 rays = ray_generation(batch["Ks"], batch["poses"], ray_s["pixels_uv"], batch["aabb"])
                 depth = depth_sampling(rays["t_near"], rays["t_far"], self.num_rays,
                                        self.num_samples_per_ray, method=self.depth_sampler_method)
@@ -287,7 +307,7 @@ class NerfWrapper:
                                         hit_max=rays["hit_mask"],
                                         bg_color=self.bgcolor if self.use_bgcolor else None)
 
-                loss, psnr = loss_computation(vol["rgb_pred"], vol_f["rgb_pred"], ray_s["pixels_gt"])
+                loss, psnr = loss_computation(vol["rgb_pred"], vol_f["rgb_pred"], rgb_gt)
                 total_loss += loss.item()
                 total_psnr += psnr.item()
                 count += 1
@@ -350,8 +370,8 @@ class NerfWrapper:
         dev = self.device
 
         # Defaults from dataset if not provided
-        if K is None:        K = self.ds.K
-        if pose is None:     pose = self.ds.frames[self.ds.indexes[0]]
+        if K is None: K = self.ds.K
+        if pose is None: pose = self.ds.frames[self.ds.indexes[0]]
         if H is None or W is None:
             H = getattr(self.ds, "height")
             W = getattr(self.ds, "width")

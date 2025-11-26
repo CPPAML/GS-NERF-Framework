@@ -23,7 +23,6 @@ def ray_generation(K,
         o_world = t[:, None, :].expand(-1, pixels.shape[1], -1) # (V, N_r, 3)
 
         with torch.no_grad():
-            # Fix for zero sign
             sign = torch.sign(d_world)
             sign = torch.where(sign == 0, torch.ones_like(sign), sign)
             safe_d = torch.where(d_world.abs() > eps, d_world, sign * eps)
