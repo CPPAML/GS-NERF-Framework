@@ -144,7 +144,6 @@ class NerfWrapper:
               save_depth_preview: bool = True):
         self.NeRF.train()
         best_val = float("inf")
-        # NEW: create a run dir
         self.run_dir = getattr(self, "run_dir", None) or self._make_run_dir()
 
         print(f"Starting training loop for {iters} iterations...")
