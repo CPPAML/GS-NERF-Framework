@@ -1,6 +1,6 @@
 from torch.utils.data import Dataset
 from pathlib import Path
-import json, os, torch, cv2, math, random
+import json, torch, cv2, math, random
 from typing import Iterator, Dict, Any, List, Tuple
 
 

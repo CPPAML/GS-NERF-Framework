@@ -10,9 +10,11 @@ class NeRF(nn.Module):
         self.skip_connect = skip_connect
         
         self.layers = nn.ModuleList()
-
+        
+        # Layer 0
         self.layers.append(nn.Linear(input_dim, hidden_dim))
-
+        
+        # Subsequent layers
         for i in range(1, hidden_layers):
             if i in skip_connect:
                 self.layers.append(nn.Linear(hidden_dim + input_dim, hidden_dim))
@@ -20,6 +22,8 @@ class NeRF(nn.Module):
                 self.layers.append(nn.Linear(hidden_dim, hidden_dim))
         
         self.output_layer = nn.Linear(hidden_dim, 4)
+        # Initialize sigma bias to -0.25 so density starts around 0.57 (Softplus(-0.25) approx 0.57)
+        # This balances starting density with stability.
         torch.nn.init.constant_(self.output_layer.bias[3], -0.25)
         
         self.relu = nn.ReLU()
@@ -40,3 +44,11 @@ class NeRF(nn.Module):
         rgb = self.sigmoid(out[:, :-1])
         
         return sigma.view(views, num_rays, samples_per_ray, 1), rgb.view(views, num_rays, samples_per_ray, 3)
+
+class GaussianNetwork(nn.Module):
+    def __init__(self, mu_world, l_world, color, opacity_logits):
+        super().__init__()
+        self.mu_world = nn.Parameter(mu_world)
+        self.l_world = nn.Parameter(l_world)
+        self.color = nn.Parameter(color)
+        self.opacity_logits = nn.Parameter(opacity_logits)
